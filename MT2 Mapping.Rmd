@@ -1,0 +1,164 @@
+---
+title: "MT2 Mapping"
+output: html_document
+date: "2024-11-18"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Load Packages
+```{r}
+install.packages("tidyverse")
+library(tidyverse)
+install.packages("sf")
+library(sf)
+```
+```{r}
+
+cons_sf <- read_sf("/Users/rithikaravishankar/Desktop/Westminster_Parliamentary_Constituencies_July_2024_Boundaries_UK_BUC_2422301726925534921 (2)/PCON_JULY_2024_UK_BUC.shp")
+cons_sf
+
+
+```
+Plot Map
+```{r}
+
+ggplot(cons_sf) + 
+  geom_sf(fill = "#d946bb", color = "grey88") + 
+  theme_minimal()
+```
+
+#Focusing on Berkshire
+```{r}
+berkshire_sf <- cons_sf %>%
+  filter(PCON24NM %in% c("Bracknell", "Maidenhead", "Newbury",
+                         "Reading West and Mid Berkshire",
+                         "Windsor", "Wokingham"))
+
+# View the resulting table
+berkshire_sf
+```
+
+```{r}
+ggplot(berkshire_sf) + 
+  geom_sf(fill ="#3BA740", color = "white")+
+  labs(title="Constituencies in the Royal County of Berkshire")+ 
+  theme_minimal()+
+  theme(plot.title =element_text(size=20))
+```
+
+#Label each consituencies (at geometric centre)
+```{r}
+#Finding middle point and the location for each label
+berkshire_sf$centroid <- st_centroid(berkshire_sf$geometry)
+berkshire_sf$centroid
+
+centroids <- st_coordinates(berkshire_sf$centroid)
+centroids
+
+berkshire_sf <- cbind(berkshire_sf, centroids)
+berkshire_sf
+
+#Retrieve label for each constituency
+ggplot(berkshire_sf) + 
+  geom_sf(fill = "#3BA740", color = "white")+
+  labs(title= "Constituencies in the Royal County of Berkshire")+
+  geom_text(aes(x = X, y = Y, label = PCON24NM), size = 3, color = "black") + theme_minimal()+
+  theme(plot.title = element_text((size=20))
+        
+        
+#Adding Labels now have location for each point and names of each constituency retrieved from the tibble
+ggplot(berkshire_sf) + 
+  geom_sf(fill = "#3BA740", color = "white") + 
+  labs(title = "Constituencies in the Royal County of Berkshire") + 
+  geom_text(aes(x = X, y = Y, label = PCON24NM), size = 2, color = "black") + 
+  theme_minimal() + 
+  theme(plot.title = element_text(size = 20))
+
+
+
+#Adding in colour categorical variable in our constituencies in Berkshire map we can create a variable that describes whether the constituency is completely new, remained unchanged in the latest re-organisation or had some changes
+
+Boundaries <- c("Major changes", "New constituency", "Major changes", 
+                "Minor changes", "New constituency", "New constituency")
+
+
+berkshire_sf <- cbind(berkshire_sf, Boundaries)
+
+ggplot(berkshire_sf) +
+  geom_sf(aes(fill = Boundaries), color = "white") +
+  scale_fill_manual(values = c(
+    "Major changes" = "#E69F00",
+    "New constituency" = "#56B4E9",
+    "Minor changes" = "#009E73"
+  )) +
+  labs(title = "Constituencies in the Royal County of Berkshire") +
+  geom_text(aes(x = X, y = Y, label = name), size = 3, color = "black") +
+  theme_minimal() +
+  theme(plot.title = element_text(size = 20))
+
+
+#Adding in colour for a continious variable
+
+Electorate<-c(70247, 70083, 73463, 71631, 71283, 69999)
+berkshire_sf <- cbind(berkshire_sf, Electorate)
+
+ggplot(berkshire_sf) + 
+  geom_sf(aes(fill = Electorate), color = "white") + 
+  scale_fill_continuous(name = "Electorate", high = "#8788ab", low = "#cacbdf") + 
+  geom_text(aes(x = X, y = Y, label = name), size = 2.5, color = "black") + 
+  labs(title = "Constituencies in the Royal County of Berkshire") + 
+  theme_minimal() + 
+  theme(plot.title = element_text(size = 20))
+
+
+```
+
+#Create a dataframe of longitudes and latitidues 
+```{r}
+#1. Create a dataframe of longitudes and latitudes
+
+Settlements <- data.frame(
+  Town = c("Reading", "Bracknell", "Maidenhead", "Wokingham", "Newbury", "Woodley", "Thatcham", "Sandhurst"),
+  lat = c(51.4551, 51.4141, 51.5218, 51.4100, 51.4014, 51.4517, 51.4058, 51.3462),
+  lon = c(-0.9787, -0.7526, -0.7242, -0.8339, -1.3231, -0.9029, -1.2665, -0.8043)
+)
+
+
+#2 Turn it into an sf object. “crs 4326” essentially states that these are coordinates presented as longitude and latitude on the surface of the Earth
+
+Settlements_sf <- st_as_sf(Settlements, coords = c("lon", "lat"), crs = 4326)
+Settlements_sf
+
+#Step 3: Convert them to the same crs as our base map
+Settlements_sf <- st_transform(Settlements_sf, st_crs(berkshire_sf))
+Settlements_sf
+
+#Step 4: For ease of use, create a coordinates table
+settlements_coords <- st_coordinates(Settlements_sf)
+settlements_coords
+
+
+
+#Step 5: Use geom_point and geom_text on ggplot to add your points. Assuming `Settlements` is already converted to an sf object with geometry
+ggplot(berkshire_sf) + 
+  geom_sf(aes(fill = Electorate), color = "white") + 
+  scale_fill_continuous(name = "Electorate", high = "#8788ab", low = "#cacbdf") + 
+  geom_text(aes(x = X, y = Y, label = name), size = 3, color = "black") + 
+  # Adding settlement points
+  geom_point(data = Settlements_sf, aes(x = lon, y = lat), color = "#770088", size = 2) + 
+  # Adding settlement labels
+  geom_text(data = Settlements_sf, 
+            aes(x = lon, y = lat, label = Town), 
+            size = 3, 
+            nudge_y = -0.01, 
+            color = "#770088") + 
+  # Plot title
+  labs(title = "Constituencies in the Royal County of Berkshire") + 
+  theme_minimal() + 
+  theme(plot.title = element_text(size = 20))
+
+```
+
